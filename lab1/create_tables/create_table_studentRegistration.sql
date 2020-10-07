@@ -3,6 +3,6 @@ CREATE TABLE studentRegistration(
       code_presentation VARCHAR,
       id_student INTEGER,
       date_registration INTEGER,
-      date_unregistration INTEGER
+      date_unregistration INTEGER,
       PRIMARY KEY(id_student)
 );
