@@ -4,5 +4,6 @@ CREATE TABLE studentAssessment(
       date_submitted INTEGER,
       is_banked INTEGER,
       score INTEGER,
-      PRIMARY KEY(id_student)
+      FOREIGN KEY(id_student) REFERENCES studentInfo(id_student),
+      FOREIGN KEY (id_assessment) REFERENCES Assessments(id_assessment)
 );

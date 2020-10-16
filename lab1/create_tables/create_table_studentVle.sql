@@ -4,5 +4,7 @@ CREATE TABLE studentVle(
       id_student INTEGER,
       id_site INTEGER,
       dt INTEGER,
-      sum_click INTEGER
+      sum_click INTEGER,
+      FOREIGN KEY(id_student) REFERENCES  studentInfo(id_student),
+      FOREIGN KEY(id_site) REFERENCES vle(id_site)
 );

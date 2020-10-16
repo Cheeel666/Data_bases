@@ -4,5 +4,6 @@ CREATE TABLE vle(
       code_presentation VARCHAR,
       activity_type VARCHAR,
       week_from INTEGER,
-      week_to INTEGER
+      week_to INTEGER,
+      PRIMARY KEY(id_site)
 );

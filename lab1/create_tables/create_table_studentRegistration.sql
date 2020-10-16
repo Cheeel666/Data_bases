@@ -4,5 +4,5 @@ CREATE TABLE studentRegistration(
       id_student INTEGER,
       date_registration INTEGER,
       date_unregistration INTEGER,
-      PRIMARY KEY(id_student)
+      FOREIGN KEY(id_student) REFERENCES studentInfo(id_student)
 );
