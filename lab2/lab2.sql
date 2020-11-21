@@ -305,3 +305,34 @@ WHERE n = 1;
 select * from test
 --обобщенное табличное выражение, оконные функции - что такое и чем отличаются от других функций.
 --
+
+
+create or replace procedure get_all_staff() as
+$$
+begin
+create table if not exists info_func(
+	sch varchar,
+	nm varchar,
+	dtype varchar,
+	arg_dt varchar,
+	type_f varchar
+);
+delete from info_func;
+insert into info_func
+	select n.nspname as "Schema", p.proname as "Name",
+	  pg_catalog.pg_get_function_result(p.oid) as "Result data type",
+	  pg_catalog.pg_get_function_arguments(p.oid) as "Argument data types",
+	 CASE
+	  WHEN p.prorettype = 'pg_catalog.trigger'::pg_catalog.regtype THEN 'trigger'
+	  ELSE 'normal'
+	 END as "Type"
+	FROM pg_catalog.pg_proc p
+		 LEFT JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+	WHERE pg_catalog.pg_function_is_visible(p.oid)
+		  AND n.nspname <> 'pg_catalog'
+		  AND n.nspname <> 'information_schema'
+	ORDER BY 1, 2, 4;
+end;
+$$ language plpgsql;
+call  get_all_staff();
+select * from info_func;
