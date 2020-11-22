@@ -19,9 +19,9 @@ $$;
 select get_avg_date();
 
 -- 2. Подставляемая табличная функция
+-- проверено, все ок
 
-
-CREATE OR REPLACE FUNCTION get_students (gender varchar,amount INTEGER)
+CREATE OR REPLACE FUNCTION get_students (amount INTEGER)
 RETURNS SETOF studentinfo
 LANGUAGE plpgsql
 AS
@@ -30,7 +30,6 @@ BEGIN
     RETURN QUERY
     	execute format('select *
 					   from studentinfo
-					   where gender = ''F''
 					   limit $1
 					   ')
 					   using amount;
@@ -75,42 +74,52 @@ select get_avg();
 
 
 -- 4. рекурсивная функция
-
-
+-- ПЕРЕДЕЛАНО, В СООТВЕТСТВИИ С ЗАЩИТОЙ: работает
+-- главное, опять же, подобрать границы, чтобы не было переполнения стека
+--
+drop function recursive_f;
 create or replace function recursive_f(ct int,pr int)
-returns table (counter int, product int)
+returns table (min_id int, max_id int, id_s int)
 language plpgsql
 as
 $$
 begin
-	return query select ct, pr;
-	if ct < 10 then
-		return query select * from recursive_f(ct + 1, (ct + 1) * (ct + 1));
+	return query select ct, pr, temp4rec.id_student from temp4rec where temp4rec.id_student = ct ;
+	if ct < pr then
+		return query select * from recursive_f(ct + 1,pr);
 	end if;
 end;
 $$;
 
-select * from recursive_f(1,1)
+select * from recursive_f(11300,11400);
+select * from recursive_f(28000, 28500);
+select * from temp4rec;
 
--- 1. Хранимая процедура с параметрами или без
-
+-- 1. Хранимая процедура с параметрами или бе
+-- там в названии show, но на самом деле это delete, мне лень менять!
+-- проверил, все работает.
+select * into test from studentassessment limit 5;
 CREATE OR REPLACE PROCEDURE show_student(id_s INTEGER)
     LANGUAGE plpgsql
 AS
 $$
 BEGIN
 	delete from test
-	where employeeid = id_s;
+	where id_student = id_s;
 END;
 $$;
-
-call show_student(3)
-
+call show_student(31604);
+call show_student(28400);
+call show_student(32885);
+call show_student(38053);
+select * from test;
 -- 2.
-
+-- ПЕРЕПРОВЕРЕНО, РАБОТАЕТ
+-- важно поставить не слишком большие границы, иначе переполняется стек
 select * into temp_t from studentassessment limit 5;
 
 select * from temp_t;
+
 
 
 create or replace procedure rec_proc(new_date int, id_l int, id_h int) as
@@ -125,10 +134,11 @@ then
 end if;
 end;
 $$ language plpgsql;
-select * from temp_t;
-call rec_proc(12,11390,11395);
 
+call rec_proc(0,31600,31650);
+select * from temp_t;
 -- 3.
+-- ПРОВЕРЕНО ДЛЯ ЗАЩИТЫ - работает
 
 select * into temp_t from studentassessment limit 5;
 
@@ -153,7 +163,7 @@ begin
 end
 $$language plpgsql;
 
-call update_date(1, 22);
+call update_date(1, 18);
 select * from temp_t;
 
 -- 4.
@@ -183,38 +193,75 @@ $$ language plpgsql;
 
 call table_info();
 
---
-create table if not exists changes
-(
-	change_id int not null,
-	change_data text not null
-);
+----- ниже представлена правильная переделка(в соответствии с защитой)
+------------   ПРАВИЛЬНАЯ ПЕРЕДЕЛКА
+create or replace procedure drop_table_like() as
+$$
+declare
+	tmp_table_name text;
+	cur cursor for
+	select tablename from pg_tables where schemaname = 'public';
+begin
+	open cur;
+	loop
+		fetch cur into tmp_table_name;
+		exit when not found;
 
+		if tmp_table_name like 'temp%' then
+			execute 'DROP TABLE IF EXISTS ' || tmp_table_name || ';';
+			raise notice 'Deleted!';
+		end if;
+	end loop;
+	close cur;
+end;
+$$ language plpgsql;
+
+create table temp_t(
+lol integer);
+
+call drop_table_like()
+--
+
+--триггер after
+--триггер срабатывает при смене is_banked в table temp_t, логи в таблицу  test_log_table
 create or replace function log_func()
 returns trigger as
 $$
 begin
-	insert into changes(change_id, change_data)
-	values (new.id, current_timestamp);
+	insert into test_log_table(id_for_change,new_is_banked,old_is_banked, dt)
+	values (new.id_student,new.is_banked,old.is_banked,current_timestamp);
 	return new;
 end;
 $$ language plpgsql;
 
+
 create trigger upd_trigger
-	after update of date_submitted on temp_t
+	after update of is_banked on temp_t
 	for each row
 	execute procedure log_func();
 
 
+select * from temp_t;
+update temp_t
+set is_banked = 104 where id_student = 1;
+
+select * from test_log_table;
 --
+-- ТРИГГЕР insteard of
+-- вместо значений в temp_t1 записывает их в studying_audits
+create table temp_t1(
+	id_student INTEGER,
+	date_submitted integer
+);
 
-
-create table studiyng_audits(
+create table studying_audits(
 	id_student INTEGER,
 	date_submitted_old INTEGER,
 	date_submitted_new INTEGER,
 	changed_on TIMESTAMP(6) NOT NULL
 );
+
+--
 create or replace function log_dt_insert()
 	returns trigger
 	language plpgsql
@@ -222,7 +269,7 @@ as
 $$
 begin
 	insert into studying_audits(id_student, date_submitted_old, date_submitted_new, changed_on)
-	values (new.id_student, null, new.date_submitted_new, now());
+	values (new.id_student, null, new.date_submitted, now());
 	return old;
 end;
 $$;
@@ -232,7 +279,12 @@ create trigger dt_change_insert
 	on temp_t1
 	for each row
 	execute procedure log_dt_insert();
+--
+select * from studying_audits;
+insert into temp_t1 values(2,3);
+select * from temp_t1;
 
 
-	-- 2, 4,2B,
-	--метаданные - данные в темп таблицу
+
+
+	-- 2, 4,2B
