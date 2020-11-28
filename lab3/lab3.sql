@@ -120,8 +120,6 @@ select * into temp_t from studentassessment limit 5;
 
 select * from temp_t;
 
-
-
 create or replace procedure rec_proc(new_date int, id_l int, id_h int) as
 $$
 begin
@@ -194,7 +192,7 @@ $$ language plpgsql;
 call table_info();
 
 ----- ниже представлена правильная переделка(в соответствии с защитой)
-------------   ПРАВИЛЬНАЯ ПЕРЕДЕЛКА
+------------   ПРАВИЛЬНАЯ ПЕРЕДЕЛКА (82мс)
 create or replace procedure drop_table_like() as
 $$
 declare
@@ -215,13 +213,45 @@ begin
 	close cur;
 end;
 $$ language plpgsql;
+--- БЕЗ КУРСОРА (62мс):
+
+CREATE OR REPLACE PROCEDURE drop_by_name(del_name VARCHAR)
+LANGUAGE plpgsql
+AS
+$$
+declare
+table_rec rec;
+BEGIN
+for table_rec in (
+select relname from pg_class
+where relnamespace = (
+select oid
+from pg_namespace
+where nspname = 'public'
+)
+and relname LIKE del_name
+)
+loop
+execute 'drop table '||table_rec.relname||' cascade';
+end loop;
+END;
+$$;
+
+
+select * into temp_studentinfo from studentinfo;
+
+create type rec as (
+relname VARCHAR
+);
+
 
 create table temp_t(
 lol integer);
 
+call drop_by_name('temp%')
 call drop_table_like()
 --
-
+-- ЗАЩИТА : процедура выше без курсора и замерить время
 --триггер after
 --триггер срабатывает при смене is_banked в table temp_t, логи в таблицу  test_log_table
 create or replace function log_func()

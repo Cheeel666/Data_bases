@@ -8,23 +8,24 @@ $$ language plpython3u;
 
 select * from get_score_by_id(11391);
 
-
-create or replace function get_avg_score(id_s integer)
-returns text
+-- Защита: написать через агрегатную функцию.
+create or replace function get_avg_score(double precision,id_s integer)
+returns float
 as
 $$
 global summ
-summ= 0
-count = 0
-l = plpy.execute(f"select * from studentassessment where id_student = '{id_s}'")
-for i in l:
-    summ += i['score']
-    count +=1
-summ = summ/count
-return summ
+l = plpy.execute(f"select avg(date_submitted) as average from studentassessment where id_student = '{id_s}' group by id_student")
+return l[0]["average"]
 $$ language plpython3u;
 
+create or replace aggregate avg_score(integer)(
+    SFUNC = get_avg_score,
+    STYPE = float
+);
+
 select * from get_avg_score(11391);
+select avg_score(11391);
+
 
 create or replace function get_students_with_score(scor integer)
 returns table (id_assessment int, id_student int, date_submitted int, is_banked int, score int)
